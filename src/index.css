@@ -2,6 +2,15 @@
 
 :root {
   color-scheme: light;
+  --surface-shell: #fafafb;
+  --surface-elevated: #ffffff;
+  --surface-canvas: #f2f3f5;
+  --border-hairline: rgba(228, 228, 231, 0.75);
+  --ink-primary: #18181b;
+  --ink-secondary: #52525b;
+  --ink-muted: #a1a1aa;
+  --accent-ai: #4f46e5;
+  --accent-ai-soft: rgba(79, 70, 229, 0.1);
 }
 
 html,
@@ -11,13 +20,35 @@ body,
   width: 100%;
   margin: 0;
   padding: 0;
-  font-family: "Inter", "Microsoft YaHei UI", "PingFang SC", system-ui, -apple-system, sans-serif;
+  background-color: var(--surface-shell);
+  color: var(--ink-primary);
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Custom sleek scrollbars */
+::selection {
+  background-color: rgba(99, 102, 241, 0.15);
+  color: inherit;
+}
+
+/* Ultra-thin quiet scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(161, 161, 170, 0.35) transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -25,10 +56,64 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.45);
+  background: rgba(161, 161, 170, 0.28);
   border-radius: 9999px;
+  transition: background-color 150ms ease;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(161, 161, 170, 0.42);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.65);
+  background: rgba(113, 113, 122, 0.6);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Subtle UI motion */
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes float-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ai-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.animate-toast-in {
+  animation: toast-enter 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-float-in {
+  animation: float-in 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-ai-pulse {
+  animation: ai-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

@@ -1,0 +1,133 @@
+/*
+ * Scoped stylesheet for native DOCX preview inside DocxPreviewPane.
+ *
+ * Uses `.onedoc-docx-host` specificity to cleanly override the `<style>` tags
+ * dynamically injected by `docx-preview` at runtime, while protecting Word
+ * layout primitives from Tailwind CSS v4 Preflight resets.
+ */
+
+.onedoc-docx-host {
+  display: block;
+  width: max-content;
+  box-sizing: border-box;
+}
+
+/* Warm-neutral desk backdrop: transparent over DocxPreviewPane's #F2F3F5 surface */
+.onedoc-docx-host .docx-wrapper {
+  background: transparent;
+  width: max-content;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-flow: column nowrap;
+  align-items: center;
+  gap: 24px;
+}
+
+/* Discrete crisp white A4 / Letter paper sheets matching Quiet Precision elevation */
+.onedoc-docx-host .docx-wrapper > section.docx {
+  background: #ffffff;
+  margin: 0;
+  border-radius: 2px;
+  box-shadow:
+    0 1px 3px rgba(15, 23, 42, 0.06),
+    0 12px 32px -8px rgba(15, 23, 42, 0.08),
+    0 0 0 1px rgba(24, 24, 27, 0.05);
+  box-sizing: border-box;
+  display: flex;
+  flex-flow: column nowrap;
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+/* Whisper-quiet page counter pill tucked into the outer bottom-right paper margin */
+.onedoc-docx-host .docx-wrapper > section.docx[data-onedoc-page]::after {
+  content: attr(data-onedoc-page) " / " attr(data-onedoc-total-pages);
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 3px 7px;
+  border-radius: 9999px;
+  border: 1px solid rgba(228, 228, 231, 0.75);
+  pointer-events: none;
+  user-select: none;
+  z-index: 3;
+}
+
+/* Ensure header, article body, and footer span full content width inside the flex page */
+.onedoc-docx-host section.docx > header,
+.onedoc-docx-host section.docx > article,
+.onedoc-docx-host section.docx > footer {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.onedoc-docx-host section.docx > header,
+.onedoc-docx-host section.docx > footer {
+  flex-shrink: 0;
+}
+
+.onedoc-docx-host section.docx > article {
+  margin-bottom: auto;
+  z-index: 1;
+}
+
+/* Restore inline image & SVG flow behavior that Tailwind v4 Preflight resets to `display: block` */
+.onedoc-docx-host .docx img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  vertical-align: baseline;
+}
+
+.onedoc-docx-host .docx svg {
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* Restore semantic HTML list styling for any native ul/ol inside article content */
+.onedoc-docx-host .docx article ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+}
+
+.onedoc-docx-host .docx article ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+}
+
+/* Keep tables cleanly collapsed and crisp across paginated continuation fragments */
+.onedoc-docx-host .docx table {
+  border-collapse: collapse;
+  box-sizing: border-box;
+}
+
+.onedoc-docx-host .docx table[data-docx-continued="true"] {
+  margin-top: 0 !important;
+}
+
+/* Footnote / endnote lists rendered directly under section.docx */
+.onedoc-docx-host section.docx > ol {
+  margin-top: 12px;
+  padding-top: 8px;
+  padding-left: 1.5em;
+  border-top: 1px solid rgba(148, 163, 184, 0.45);
+  font-size: 9pt;
+  list-style-type: decimal;
+  z-index: 1;
+}
+
+@media print {
+  .onedoc-docx-host .docx-wrapper > section.docx[data-onedoc-page]::after {
+    display: none;
+  }
+}

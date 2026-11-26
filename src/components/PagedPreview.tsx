@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
   Check,
+  Pencil,
   Sparkles,
   Trash2,
   X,
@@ -21,10 +22,22 @@ interface PagedPreviewProps {
   onFocusPromptForBlock?: (blockId: string) => void;
 }
 
+function isEditableBlock(b: DocBlock): boolean {
+  return (
+    b.type === "title" ||
+    b.type === "subtitle" ||
+    b.type === "heading" ||
+    b.type === "paragraph" ||
+    b.type === "quote"
+  );
+}
+
 function renderRuns(runs: TextRun[]) {
   return runs.map((r, idx) => {
     const cls = [
-      r.code ? "bg-slate-100 text-teal-800 px-1 py-0.5 rounded font-mono text-[0.9em]" : "",
+      r.code
+        ? "bg-zinc-100/90 text-zinc-800 border border-zinc-200/70 px-1 py-[0.5px] rounded font-mono text-[0.88em]"
+        : "",
       r.underline ? "underline" : "",
     ]
       .filter(Boolean)
@@ -119,7 +132,7 @@ function BlockContent({
           : style.colors.calloutBg;
       return (
         <div
-          className="px-4 py-2.5 rounded-r-md my-2"
+          className="px-4 py-2.5 rounded-r-lg my-2"
           style={{
             backgroundColor: bg,
             borderLeft: `4px solid ${style.colors.primary}`,
@@ -143,11 +156,14 @@ function BlockContent({
     case "code_block":
       return (
         <pre
-          className="my-2 px-3.5 py-2.5 rounded-md border border-slate-200 bg-slate-50 text-slate-800 text-[9.5pt] leading-relaxed overflow-x-auto"
-          style={{ fontFamily: '"Consolas", "JetBrains Mono", monospace' }}
+          className="my-2 px-3.5 py-2.5 rounded-lg border border-zinc-200/80 bg-[#FAFAFB] text-zinc-800 text-[9.5pt] leading-relaxed overflow-x-auto"
+          style={{
+            fontFamily:
+              '"JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, monospace',
+          }}
         >
           {block.language && (
-            <div className="text-[8pt] uppercase text-slate-400 mb-1 select-none">
+            <div className="text-[8pt] uppercase tracking-wider text-zinc-400 mb-1.5 select-none">
               {block.language}
             </div>
           )}
@@ -203,10 +219,7 @@ function BlockContent({
                 <tr
                   style={{
                     backgroundColor: headerBg,
-                    borderBottom:
-                      mode === "three_line"
-                        ? `0.75pt solid ${borderColor}`
-                        : `0.75pt solid ${borderColor}`,
+                    borderBottom: `0.75pt solid ${borderColor}`,
                   }}
                 >
                   {block.headers.map((h, ci) => (
@@ -221,9 +234,13 @@ function BlockContent({
                           .align as React.CSSProperties["textAlign"],
                         padding: `${padV} ${padH}`,
                         borderLeft:
-                          mode === "grid" ? `0.75pt solid ${borderColor}` : "none",
+                          mode === "grid"
+                            ? `0.75pt solid ${borderColor}`
+                            : "none",
                         borderRight:
-                          mode === "grid" ? `0.75pt solid ${borderColor}` : "none",
+                          mode === "grid"
+                            ? `0.75pt solid ${borderColor}`
+                            : "none",
                       }}
                     >
                       {h}
@@ -302,12 +319,12 @@ function BlockContent({
 
     case "page_break":
       return (
-        <div className="my-5 flex items-center gap-2 select-none">
-          <div className="flex-1 border-t border-dashed border-slate-300" />
-          <span className="text-[10px] font-medium text-slate-400 px-2 py-0.5 bg-slate-100 rounded">
+        <div className="my-6 flex items-center gap-3 select-none">
+          <div className="flex-1 border-t border-dashed border-zinc-300/90" />
+          <span className="text-[10px] font-medium tracking-wide text-zinc-400 px-2.5 py-0.5 bg-zinc-100/90 border border-zinc-200/80 rounded-full">
             分页符
           </span>
-          <div className="flex-1 border-t border-dashed border-slate-300" />
+          <div className="flex-1 border-t border-dashed border-zinc-300/90" />
         </div>
       );
   }
@@ -331,10 +348,59 @@ export function PagedPreview({ onFocusPromptForBlock }: PagedPreviewProps) {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const [naturalSize, setNaturalSize] = useState<{
+    width: number;
+    height: number;
+  }>({ width: 0, height: 0 });
 
   void activeStyleId;
   void customStyles;
   const style = getActiveStyle();
+
+  const measureNaturalSize = useCallback(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const width = el.offsetWidth;
+    const height = el.offsetHeight;
+    if (width > 0 && height > 0) {
+      setNaturalSize((prev) =>
+        Math.abs(prev.width - width) < 1 && Math.abs(prev.height - height) < 1
+          ? prev
+          : { width, height }
+      );
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    measureNaturalSize();
+  }, [
+    measureNaturalSize,
+    style.page.widthMm,
+    style.page.heightMm,
+    doc.blocks,
+    pendingDiff,
+    editingId,
+  ]);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      measureNaturalSize();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [measureNaturalSize]);
+
+  const fallbackWidth = Math.ceil((style.page.widthMm * 96) / 25.4);
+  const fallbackHeight = Math.ceil((style.page.heightMm * 96) / 25.4) + 36;
+  const naturalWidth =
+    naturalSize.width > 0 ? naturalSize.width : fallbackWidth;
+  const naturalHeight =
+    naturalSize.height > 0 ? naturalSize.height : fallbackHeight;
+  const scaledWidth = Math.ceil(naturalWidth * zoom);
+  const scaledHeight = Math.ceil(naturalHeight * zoom);
 
   const beginInlineEdit = (b: DocBlock) => {
     if (b.type === "title" || b.type === "subtitle" || b.type === "heading") {
@@ -352,7 +418,11 @@ export function PagedPreview({ onFocusPromptForBlock }: PagedPreviewProps) {
   const commitInlineEdit = (b: DocBlock) => {
     const nextBlocks = doc.blocks.map((item) => {
       if (item.id !== b.id) return item;
-      if (item.type === "title" || item.type === "subtitle" || item.type === "heading") {
+      if (
+        item.type === "title" ||
+        item.type === "subtitle" ||
+        item.type === "heading"
+      ) {
         return { ...item, text: editDraft };
       }
       if (item.type === "paragraph") {
@@ -385,7 +455,9 @@ export function PagedPreview({ onFocusPromptForBlock }: PagedPreviewProps) {
   };
 
   // Compute heading numbers sequentially
-  const computePrefixes = (blocks: (DocBlock | undefined)[]): Map<string, string> => {
+  const computePrefixes = (
+    blocks: (DocBlock | undefined)[]
+  ): Map<string, string> => {
     const map = new Map<string, string>();
     const counters: [number, number, number, number] = [0, 0, 0, 0];
     for (const b of blocks) {
@@ -408,16 +480,19 @@ export function PagedPreview({ onFocusPromptForBlock }: PagedPreviewProps) {
   const prefixMap = computePrefixes(activeBlocksForPrefix);
 
   const hf = style.headerFooter;
+  const pageBreakCount = doc.blocks.filter((b) => b.type === "page_break").length;
+  const estimatedPages = pageBreakCount + 1;
   const pageNumberSample =
     hf.pageNumberFormat === "dash"
       ? "— 1 —"
       : hf.pageNumberFormat === "of_total"
-      ? "1 / 1"
+      ? `1 / ${estimatedPages}`
       : "1";
 
   const renderInteractiveBlock = (b: DocBlock) => {
     const isSelected = selectedBlockIds.includes(b.id);
     const isEditing = editingId === b.id;
+    const canInlineEdit = isEditableBlock(b);
 
     return (
       <div
@@ -430,38 +505,69 @@ export function PagedPreview({ onFocusPromptForBlock }: PagedPreviewProps) {
           e.stopPropagation();
           if (!pendingDiff) beginInlineEdit(b);
         }}
-        className={`relative group rounded transition-all ${
+        className={`relative group rounded-lg transition-all duration-150 px-2 -mx-2 ${
           isSelected
-            ? "ring-2 ring-blue-500/80 bg-blue-50/25 px-1.5 -mx-1.5"
-            : "hover:ring-1 hover:ring-slate-300/70 px-1.5 -mx-1.5"
+            ? "ring-1 ring-indigo-500/60 bg-indigo-50/[0.22] shadow-[0_0_0_3px_rgba(99,102,241,0.06)]"
+            : "hover:ring-1 hover:ring-zinc-300/75 hover:bg-zinc-900/[0.015]"
         }`}
       >
+        {/* Subtle hover AI cue when unselected */}
+        {!isSelected && !isEditing && !pendingDiff && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleBlockSelection(b.id, false);
+              onFocusPromptForBlock?.(b.id);
+            }}
+            title="让 Agent 改写此区块"
+            className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-2.5 right-1 z-10 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white/95 backdrop-blur-xs border border-zinc-200/85 shadow-2xs text-[10px] font-medium text-indigo-600 hover:bg-indigo-50/90 hover:border-indigo-200/80 cursor-pointer select-none"
+          >
+            <Sparkles className="w-2.5 h-2.5" />
+            <span>AI</span>
+          </button>
+        )}
+
+        {/* Elevated AI-native floating pill toolbar when selected */}
         {isSelected && !isEditing && !pendingDiff && (
           <div
             onClick={(e) => e.stopPropagation()}
-            className="absolute -top-7 right-0 z-20 flex items-center gap-0.5 bg-slate-900 text-white px-1.5 py-0.5 rounded-md shadow-md text-[11px]"
+            className="animate-float-in absolute -top-9 right-0 z-20 flex items-center gap-0.5 bg-white/95 backdrop-blur-md text-zinc-700 p-1 rounded-xl border border-zinc-200/85 shadow-[0_6px_20px_-6px_rgba(15,23,42,0.14),0_1px_3px_rgba(15,23,42,0.06)] text-[11px] select-none"
           >
             <button
               type="button"
               onClick={() => onFocusPromptForBlock?.(b.id)}
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-slate-700 text-blue-300 cursor-pointer"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-50/85 hover:bg-indigo-100/85 text-indigo-700 font-medium transition-colors cursor-pointer"
             >
-              <Sparkles className="w-3 h-3" />
+              <Sparkles className="w-3 h-3 text-indigo-600" />
               <span>AI 改写</span>
             </button>
+
+            <div className="h-3.5 w-px bg-zinc-200/85 mx-0.5" />
+
+            {canInlineEdit && (
+              <button
+                type="button"
+                onClick={() => beginInlineEdit(b)}
+                title="直接编辑文字（也可双击区块）"
+                className="p-1 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors cursor-pointer"
+              >
+                <Pencil className="w-3 h-3" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => moveBlock(b.id, -1)}
-              title="上移"
-              className="p-1 rounded hover:bg-slate-700 cursor-pointer"
+              title="上移区块"
+              className="p-1 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors cursor-pointer"
             >
               <ArrowUp className="w-3 h-3" />
             </button>
             <button
               type="button"
               onClick={() => moveBlock(b.id, 1)}
-              title="下移"
-              className="p-1 rounded hover:bg-slate-700 cursor-pointer"
+              title="下移区块"
+              className="p-1 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors cursor-pointer"
             >
               <ArrowDown className="w-3 h-3" />
             </button>
@@ -469,7 +575,7 @@ export function PagedPreview({ onFocusPromptForBlock }: PagedPreviewProps) {
               type="button"
               onClick={() => deleteBlock(b.id)}
               title="删除区块"
-              className="p-1 rounded hover:bg-red-600/80 cursor-pointer"
+              className="p-1 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
             >
               <Trash2 className="w-3 h-3" />
             </button>
@@ -479,30 +585,44 @@ export function PagedPreview({ onFocusPromptForBlock }: PagedPreviewProps) {
         {isEditing ? (
           <div
             onClick={(e) => e.stopPropagation()}
-            className="my-1 p-2 rounded-md border border-blue-400 bg-blue-50/30 space-y-1.5"
+            className="my-1.5 p-2.5 rounded-xl border border-indigo-300/80 bg-white shadow-[0_6px_20px_-6px_rgba(79,70,229,0.14)] ring-2 ring-indigo-500/10 space-y-2"
           >
             <textarea
               value={editDraft}
               onChange={(e) => setEditDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setEditingId(null);
+                } else if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                  e.preventDefault();
+                  commitInlineEdit(b);
+                }
+              }}
               rows={Math.min(8, Math.max(2, Math.ceil(editDraft.length / 45)))}
               autoFocus
-              className="w-full text-sm text-slate-900 bg-white border border-slate-200 rounded p-2 outline-none focus:border-blue-500"
+              className="w-full text-sm text-zinc-900 bg-[#FAFAFB] border border-zinc-200/85 rounded-lg p-2.5 outline-none focus:bg-white focus:border-indigo-400/80 leading-relaxed resize-none"
             />
-            <div className="flex items-center justify-end gap-1.5">
-              <button
-                type="button"
-                onClick={() => setEditingId(null)}
-                className="px-2 py-0.5 text-xs text-slate-500 hover:text-slate-700 cursor-pointer"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={() => commitInlineEdit(b)}
-                className="px-2.5 py-0.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
-              >
-                完成编辑
-              </button>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-zinc-400 select-none">
+                Ctrl+Enter 保存 · Esc 取消
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setEditingId(null)}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition-colors cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={() => commitInlineEdit(b)}
+                  className="px-3 py-1 rounded-lg text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+                >
+                  完成编辑
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -528,48 +648,51 @@ export function PagedPreview({ onFocusPromptForBlock }: PagedPreviewProps) {
     return (
       <div
         key={entry.key}
-        className={`relative my-2 rounded-md p-2 border-l-4 ${
+        onClick={(e) => e.stopPropagation()}
+        className={`relative my-2.5 rounded-xl p-2.5 border border-l-[3px] transition-colors ${
           isAdd
-            ? "bg-emerald-50/75 border-emerald-500"
+            ? "bg-emerald-50/45 border-emerald-200/70 border-l-emerald-500"
             : isDel
-            ? "bg-rose-50/75 border-rose-500"
-            : "bg-amber-50/60 border-amber-500"
+            ? "bg-rose-50/45 border-rose-200/70 border-l-rose-500"
+            : "bg-indigo-50/25 border-indigo-200/70 border-l-indigo-500"
         }`}
       >
-        <div className="flex items-center justify-between gap-2 mb-1.5 select-none">
+        <div className="flex items-center justify-between gap-2 mb-2 select-none">
           <span
-            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+            className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${
               isAdd
-                ? "bg-emerald-100 text-emerald-800"
+                ? "bg-emerald-100/80 text-emerald-700"
                 : isDel
-                ? "bg-rose-100 text-rose-800"
-                : "bg-amber-100 text-amber-800"
+                ? "bg-rose-100/80 text-rose-700"
+                : "bg-indigo-100/80 text-indigo-700"
             }`}
           >
-            {isAdd ? "AI 新增" : isDel ? "AI 建议删除" : "AI 修改对比"}
+            <Sparkles className="w-2.5 h-2.5" />
+            {isAdd ? "AI 新增内容" : isDel ? "AI 建议删除" : "AI 改写对比"}
           </span>
+
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => acceptDiffEntry(entry.key)}
-              className="flex items-center gap-0.5 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer"
-            >
-              <Check className="w-3 h-3" />
-              <span>接受</span>
-            </button>
-            <button
-              type="button"
               onClick={() => rejectDiffEntry(entry.key)}
-              className="flex items-center gap-0.5 px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer"
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-white border border-zinc-200/90 text-zinc-600 hover:text-rose-700 hover:bg-rose-50/70 hover:border-rose-200/80 transition-colors cursor-pointer"
             >
               <X className="w-3 h-3" />
               <span>拒绝</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => acceptDiffEntry(entry.key)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-2xs cursor-pointer"
+            >
+              <Check className="w-3 h-3" />
+              <span>接受</span>
             </button>
           </div>
         </div>
 
         {(isDel || isMod) && entry.oldBlock && (
-          <div className="opacity-70 line-through decoration-rose-500 bg-rose-100/50 rounded px-2 py-1 mb-1">
+          <div className="opacity-75 line-through decoration-rose-400/80 bg-rose-50/75 border border-rose-200/45 rounded-lg px-2.5 py-1.5 mb-1.5">
             <BlockContent
               block={entry.oldBlock}
               style={style}
@@ -579,7 +702,7 @@ export function PagedPreview({ onFocusPromptForBlock }: PagedPreviewProps) {
         )}
 
         {(isAdd || isMod) && entry.newBlock && (
-          <div className="bg-emerald-100/40 rounded px-2 py-1">
+          <div className="bg-emerald-50/70 border border-emerald-200/50 rounded-lg px-2.5 py-1.5">
             <BlockContent
               block={entry.newBlock}
               style={style}
@@ -593,107 +716,143 @@ export function PagedPreview({ onFocusPromptForBlock }: PagedPreviewProps) {
 
   return (
     <div
-      className="h-full overflow-auto bg-[#EEF1F5] relative"
+      className="h-full w-full overflow-auto bg-[#F2F3F5] relative"
       onClick={() => useAppStore.getState().clearSelection()}
     >
-      {/* Pending Diff floating sticky bar */}
+      {/* Pending Diff floating sticky review pill */}
       {pendingDiff && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="sticky top-3 z-30 mx-auto max-w-2xl px-4"
+          className="sticky top-3.5 left-0 z-30 mx-auto max-w-2xl px-4"
         >
-          <div className="bg-slate-900/95 backdrop-blur text-white rounded-xl px-4 py-2.5 shadow-lg flex items-center justify-between gap-3 border border-slate-700">
-            <div className="min-w-0">
-              <div className="text-xs font-semibold flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                <span>AI 提出了 {changedEntriesCount} 处文档变更</span>
+          <div className="animate-float-in bg-white/95 backdrop-blur-md text-zinc-900 rounded-xl px-3.5 py-2.5 shadow-[0_8px_28px_-6px_rgba(15,23,42,0.14),0_1px_3px_rgba(15,23,42,0.06)] border border-zinc-200/85 ring-1 ring-indigo-500/10 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200/60 flex items-center justify-center shrink-0">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
               </div>
-              <p className="text-[11px] text-slate-300 truncate mt-0.5">
-                {pendingDiff.summary}
-              </p>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-zinc-900 tabular-nums">
+                  AI 提出了 {changedEntriesCount} 处文档变更
+                </div>
+                <p className="text-[11px] text-zinc-500 truncate mt-0.5">
+                  {pendingDiff.summary}
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={rejectAllDiffs}
-                className="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-100 cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white border border-zinc-200/90 text-zinc-600 hover:text-rose-700 hover:bg-rose-50/70 hover:border-rose-200/80 transition-colors cursor-pointer"
               >
                 全部拒绝
               </button>
               <button
                 type="button"
                 onClick={acceptAllDiffs}
-                className="px-3 py-1 rounded-md text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer"
               >
-                全部接受
+                <Check className="w-3.5 h-3.5" />
+                <span>全部接受</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <div className="py-8 px-6 flex justify-center">
+      <div className="py-10 px-6 min-w-full w-fit">
         <div
           style={{
-            transform: `scale(${zoom})`,
-            transformOrigin: "top center",
+            width: `${scaledWidth}px`,
+            height: `${scaledHeight}px`,
+            margin: "0 auto",
+            position: "relative",
           }}
-          className="transition-transform duration-150"
         >
           <div
-            style={getPageSheetStyle(style)}
-            className="shadow-[0_12px_40px_rgba(15,23,42,0.10)] ring-1 ring-slate-900/5 relative flex flex-col justify-between select-text"
+            style={{
+              width: `${naturalWidth}px`,
+              transform: `scale(${zoom})`,
+              transformOrigin: "top left",
+            }}
+            className="transition-transform duration-150"
           >
-            {/* Header preview */}
-            <div>
-              {hf.showHeader && hf.headerText && (
-                <div
-                  className="mb-5 pb-1.5 text-[9pt] text-right"
-                  style={{
-                    color: style.colors.muted,
-                    borderBottom: hf.headerBorderBottom
-                      ? `0.75pt solid ${style.colors.border}`
-                      : undefined,
-                    fontFamily: buildFontFamily(style.typography.body),
-                  }}
-                >
-                  {hf.headerText}
-                </div>
-              )}
+            <div ref={contentRef} className="w-fit flex flex-col items-center">
+              <div
+                style={getPageSheetStyle(style)}
+                className="rounded-[2px] shadow-[0_1px_3px_rgba(15,23,42,0.06),0_12px_32px_-8px_rgba(15,23,42,0.08)] ring-1 ring-zinc-900/[0.04] relative flex flex-col justify-between select-text"
+              >
+                {/* Header preview */}
+                <div>
+                  {hf.showHeader && hf.headerText && (
+                    <div
+                      className="mb-5 pb-1.5 text-[9pt] text-right"
+                      style={{
+                        color: style.colors.muted,
+                        borderBottom: hf.headerBorderBottom
+                          ? `0.75pt solid ${style.colors.border}`
+                          : undefined,
+                        fontFamily: buildFontFamily(style.typography.body),
+                      }}
+                    >
+                      {hf.headerText}
+                    </div>
+                  )}
 
-              {/* Body blocks */}
-              <div className="space-y-0.5">
-                {pendingDiff ? (
-                  pendingDiff.entries.map((entry) => renderDiffEntry(entry))
-                ) : doc.blocks.length === 0 ? (
-                  <div className="py-20 text-center text-slate-400 text-sm">
-                    当前文档为空，请在右侧让 AI Agent 开始撰写或切换至源码视图输入。
+                  {/* Body blocks */}
+                  <div className="space-y-0.5">
+                    {pendingDiff ? (
+                      pendingDiff.entries.map((entry) => renderDiffEntry(entry))
+                    ) : doc.blocks.length === 0 ? (
+                      <div className="py-24 text-center space-y-2 select-none">
+                        <div className="w-9 h-9 rounded-xl bg-zinc-100/90 border border-zinc-200/70 flex items-center justify-center mx-auto text-zinc-400">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <p className="text-sm text-zinc-400">
+                          当前文档为空，可在右侧让 AI Agent 撰写或切换至源码视图输入。
+                        </p>
+                      </div>
+                    ) : (
+                      doc.blocks.map((b) => renderInteractiveBlock(b))
+                    )}
                   </div>
-                ) : (
-                  doc.blocks.map((b) => renderInteractiveBlock(b))
+                </div>
+
+                {/* Footer preview */}
+                {hf.showFooter && (hf.showPageNumber || hf.footerText) && (
+                  <div
+                    className="mt-10 pt-3 text-[9pt] flex items-center gap-4"
+                    style={{
+                      color: style.colors.muted,
+                      justifyContent:
+                        hf.pageNumberAlign === "left"
+                          ? "flex-start"
+                          : hf.pageNumberAlign === "right"
+                          ? "flex-end"
+                          : "center",
+                      fontFamily: buildFontFamily(style.typography.body),
+                    }}
+                  >
+                    {hf.footerText && <span>{hf.footerText}</span>}
+                    {hf.showPageNumber && <span>{pageNumberSample}</span>}
+                  </div>
                 )}
               </div>
-            </div>
 
-            {/* Footer preview */}
-            {hf.showFooter && (hf.showPageNumber || hf.footerText) && (
-              <div
-                className="mt-10 pt-3 text-[9pt] flex items-center gap-4"
-                style={{
-                  color: style.colors.muted,
-                  justifyContent:
-                    hf.pageNumberAlign === "left"
-                      ? "flex-start"
-                      : hf.pageNumberAlign === "right"
-                      ? "flex-end"
-                      : "center",
-                  fontFamily: buildFontFamily(style.typography.body),
-                }}
-              >
-                {hf.footerText && <span>{hf.footerText}</span>}
-                {hf.showPageNumber && <span>{pageNumberSample}</span>}
+              {/* Quiet paper metadata / page indicator under sheet */}
+              <div className="mt-3.5 inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-[11px] text-zinc-400 tabular-nums select-none">
+                <span>
+                  {estimatedPages > 1
+                    ? `共 ${estimatedPages} 节分页`
+                    : "第 1 页"}
+                </span>
+                <span className="text-zinc-300">·</span>
+                <span>
+                  {style.page.size} ({style.page.widthMm} × {style.page.heightMm}{" "}
+                  mm)
+                </span>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>

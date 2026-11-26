@@ -58,7 +58,7 @@ export default function App() {
   }, [saveActiveFile, undo]);
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#F6F7F9] text-slate-900">
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#FAFAFB] text-zinc-900 antialiased">
       <TitleBar />
 
       <div className="flex-1 min-h-0 flex overflow-hidden">
@@ -75,28 +75,46 @@ export default function App() {
       <SettingsModal />
 
       {toast && (
-        <div className="fixed bottom-9 left-1/2 -translate-x-1/2 z-[60]">
+        <div
+          key={toast.id}
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] pointer-events-none px-4 max-w-[92vw]"
+        >
           <div
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-lg border text-xs font-medium ${
-              toast.type === "success"
-                ? "bg-emerald-900 text-white border-emerald-700"
-                : toast.type === "error"
-                ? "bg-red-900 text-white border-red-700"
-                : "bg-slate-900 text-white border-slate-700"
+            className={`pointer-events-auto animate-toast-in flex items-center gap-2.5 pl-2.5 pr-2 py-2 rounded-xl bg-zinc-900/95 backdrop-blur-md text-zinc-50 border shadow-[0_12px_32px_-8px_rgba(15,23,42,0.35),0_1px_3px_rgba(15,23,42,0.2)] text-xs font-medium ${
+              toast.type === "error"
+                ? "border-rose-500/35"
+                : toast.type === "success"
+                ? "border-emerald-500/25"
+                : "border-zinc-700/80"
             }`}
           >
-            {toast.type === "success" ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
-            ) : toast.type === "error" ? (
-              <AlertCircle className="w-4 h-4 text-red-300 shrink-0" />
-            ) : (
-              <Info className="w-4 h-4 text-blue-300 shrink-0" />
-            )}
-            <span className="max-w-md truncate">{toast.text}</span>
+            <span
+              className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                toast.type === "success"
+                  ? "bg-emerald-500/15 text-emerald-400"
+                  : toast.type === "error"
+                  ? "bg-rose-500/15 text-rose-400"
+                  : "bg-indigo-500/20 text-indigo-300"
+              }`}
+            >
+              {toast.type === "success" ? (
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              ) : toast.type === "error" ? (
+                <AlertCircle className="w-3.5 h-3.5" />
+              ) : (
+                <Info className="w-3.5 h-3.5" />
+              )}
+            </span>
+            <span className="max-w-md truncate leading-snug text-zinc-100">
+              {toast.text}
+            </span>
             <button
               type="button"
               onClick={clearToast}
-              className="ml-1 opacity-70 hover:opacity-100 cursor-pointer"
+              aria-label="关闭通知"
+              className="ml-0.5 p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
             >
               <X className="w-3.5 h-3.5" />
             </button>
